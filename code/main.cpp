@@ -1,5 +1,5 @@
 /**
- *
+ * Drill Calc
  **/
 
 #define WIN32_LEAN_AND_MEAN
@@ -19,18 +19,6 @@
 
 #include "drillcalc_platform.h"
 #include "drillcalc.cpp"
-
-// TODO(rick): GET RID OF THESE GLOBAL VARIABLES!!!
-global_variable HWND GlobalCenterDrillSize;
-global_variable HWND GlobalCenterDrillChamfer;
-global_variable HWND GlobalCenterDrillToolDepth;
-
-global_variable HWND GlobalCountersinkAngle;
-global_variable HWND GlobalCountersinkChamfer;
-global_variable HWND GlobalCountersinkTipDiameter;
-global_variable HWND GlobalCountersinkToolDepth;
-
-global_variable HWND GlobalStatusBarWindow;
 
 global_variable drill_data GlobalCenterDrillOptions[] = 
 {
@@ -71,6 +59,9 @@ global_variable drill_angle_data GlobalCountersinkOptions[] =
 
 #define APP_MENU_FILE_EXIT			1000
 #define APP_MENU_HELP_ABOUT			1500
+
+#define MESSAGE_CENTERDRILL_CHANGE  (WM_USER + 100)
+#define MESSAGE_COUNTERSINK_CHANGE  (WM_USER + 110)
 
 internal void
 Win32CreateMenu(HWND Window)
@@ -131,6 +122,65 @@ Win32CreateSelectWindow(int X, int Y, int Width, int Height, HMENU ControlID,
     return(Result);
 }
 
+static void
+Win32HandleCenterDrillChange(HWND ChamferEditWindow,
+                             HWND SizeSelectWindow,
+                             HWND DrillToolDepthWindow,
+                             drill_data *CenterDrillOptions)
+{
+    char InputStr[32] = {};
+    Edit_GetText(ChamferEditWindow, (LPSTR)InputStr, ArrayCount(InputStr));
+
+    if(strlen(InputStr) != 0)
+    {
+        real32 InputDiameter = (real32)atof(InputStr);
+        int32 SelectedDrill = ComboBox_GetCurSel(SizeSelectWindow);
+
+        drill_data *Option = CenterDrillOptions + SelectedDrill;
+        if((InputDiameter <= Option->Minimum) ||
+           (InputDiameter >= Option->Maximum))
+        {
+            Edit_SetText(DrillToolDepthWindow, "");
+        }
+        else
+        {
+            real32 DrillDepth = CalculateDrillDepth(Option, InputDiameter);
+
+            char OutputString[64] = {};
+            _snprintf(OutputString, ArrayCount(OutputString), "%0.4f", DrillDepth);
+            Edit_SetText(DrillToolDepthWindow, OutputString);
+        }
+    }
+}
+
+static void
+Win32HandleCountersinkChange(HWND AngleEditWindow,
+                             HWND ChamferEditWindow,
+                             HWND TipDiameterWindow,
+                             HWND ToolDepthWindow,
+                             drill_angle_data *CountersinkOptions)
+{
+    int32 SelectedAngleIndex = ComboBox_GetCurSel(AngleEditWindow);
+    drill_angle_data *AngleData = CountersinkOptions + SelectedAngleIndex;
+
+    char BodyDiameterStr[32] = {};
+    Edit_GetText(ChamferEditWindow, (LPSTR)BodyDiameterStr, ArrayCount(BodyDiameterStr));
+
+    char TipDiameterStr[32] = {};
+    Edit_GetText(TipDiameterWindow, (LPSTR)TipDiameterStr, ArrayCount(TipDiameterStr));
+
+    if(strlen(BodyDiameterStr) != 0)
+    {
+        real32 BodyDiameter = atof(BodyDiameterStr);
+        real32 TipDiameter = atof(TipDiameterStr);
+
+        real32 DrillAngleDepth = CalculateDrillAngleDepth(AngleData, BodyDiameter, TipDiameter);
+        char OutputString[64] = {};
+        _snprintf(OutputString, ArrayCount(OutputString), "%0.4f", DrillAngleDepth);
+        Edit_SetText(ToolDepthWindow, OutputString);
+    }
+}
+
 LRESULT CALLBACK
 WindowsCallback(HWND Window, UINT Message, WPARAM WParam, LPARAM LParam)
 {
@@ -151,60 +201,13 @@ WindowsCallback(HWND Window, UINT Message, WPARAM WParam, LPARAM LParam)
                     if((WParamLow == CONTROL_SELECT_DRILL) ||
                        (WParamLow == CONTROL_EDIT_DIAMETER))
                     {
-                        char InputStr[32] = {};
-                        Edit_GetText(GlobalCenterDrillChamfer, (LPSTR)InputStr, ArrayCount(InputStr));
-
-                        if(strlen(InputStr) != 0)
-                        {
-                            real32 InputDiameter = (real32)atof(InputStr);
-                            int32 SelectedDrill = ComboBox_GetCurSel(GlobalCenterDrillSize);
-
-                            drill_data *Option = GlobalCenterDrillOptions + SelectedDrill;
-                            if((InputDiameter <= Option->Minimum) ||
-                               (InputDiameter >= Option->Maximum))
-                            {
-                                Edit_SetText(GlobalCenterDrillToolDepth, "");
-#if 0
-                                SendMessage(GlobalStatusBarWindow, SB_SETTEXT, (WPARAM)SB_SIMPLEID, (LPARAM)"Invalid diameter");
-#endif
-                            }
-                            else
-                            {
-                                drill_data *DrillData = GlobalCenterDrillOptions + SelectedDrill;
-                                real32 DrillDepth = CalculateDrillDepth(DrillData, InputDiameter);
-
-                                char OutputString[64] = {};
-                                _snprintf(OutputString, ArrayCount(OutputString), "%0.4f", DrillDepth);
-                                Edit_SetText(GlobalCenterDrillToolDepth, OutputString);
-#if 0
-                                SendMessage(GlobalStatusBarWindow, SB_SETTEXT, (WPARAM)SB_SIMPLEID, (LPARAM)"Ready");
-#endif
-                            }
-                        }
+                        PostMessageA(0, MESSAGE_CENTERDRILL_CHANGE, 0, 0);
                     }
                     else if((WParamLow == CONTROL_SELECT_ANGLE) ||
                             (WParamLow == CONTROL_EDIT_ANGLE_DIAMETER) ||
                             (WParamLow == CONTROL_EDIT_ANGLE_TIP_DIA))
                     {
-                        int32 SelectedAngleIndex = ComboBox_GetCurSel(GlobalCountersinkAngle);
-                        drill_angle_data *AngleData = GlobalCountersinkOptions + SelectedAngleIndex;
-
-                        char BodyDiameterStr[32] = {};
-                        Edit_GetText(GlobalCountersinkChamfer, (LPSTR)BodyDiameterStr, ArrayCount(BodyDiameterStr));
-
-                        char TipDiameterStr[32] = {};
-                        Edit_GetText(GlobalCountersinkTipDiameter, (LPSTR)TipDiameterStr, ArrayCount(TipDiameterStr));
-
-                        if(strlen(BodyDiameterStr) != 0)
-                        {
-                            real32 BodyDiameter = atof(BodyDiameterStr);
-                            real32 TipDiameter = atof(TipDiameterStr);
-
-                            real32 DrillAngleDepth = CalculateDrillAngleDepth(AngleData, BodyDiameter, TipDiameter);
-                            char OutputString[64] = {};
-                            _snprintf(OutputString, ArrayCount(OutputString), "%0.4f", DrillAngleDepth);
-                            Edit_SetText(GlobalCountersinkToolDepth, OutputString);
-                        }
+                        PostMessageA(0, MESSAGE_COUNTERSINK_CHANGE, 0, 0);
                     }
                 }
                 else if(WParamLow == APP_MENU_FILE_EXIT)
@@ -270,7 +273,7 @@ WinMain(HINSTANCE Instance, HINSTANCE PrevInstance, LPSTR CmdLine, int CmdShow)
                                                       ES_READONLY, Window, Instance);
 
     HWND CountersinkLabel = Win32CreateStaticLabel("Countersink", 10, 130, 220, 20, Window, Instance);
-    HWND Countersink = Win32CreateSelectWindow(10, 150, 240, 200, (HMENU)CONTROL_SELECT_ANGLE, Window, Instance);
+    HWND CountersinkAngle = Win32CreateSelectWindow(10, 150, 240, 200, (HMENU)CONTROL_SELECT_ANGLE, Window, Instance);
 
     HWND CountersinkChamferLabel = Win32CreateStaticLabel("Chamfer", 260, 130, 220, 20, Window, Instance);
     HWND CountersinkChamfer = Win32CreateEditWindow(260, 150, 220, 24, (HMENU)CONTROL_EDIT_ANGLE_DIAMETER, 0, Window, Instance);
@@ -287,17 +290,6 @@ WinMain(HINSTANCE Instance, HINSTANCE PrevInstance, LPSTR CmdLine, int CmdShow)
                                            0, 0, 0, 0,
                                            Window, (HMENU)CONTROL_STATUS_BAR, Instance, 0);
 
-    GlobalCenterDrillSize = CenterDrillSize;
-    GlobalCenterDrillChamfer = CenterDrillChamfer;
-    GlobalCenterDrillToolDepth = CenterDrillToolDepth;
-
-    GlobalCountersinkAngle = Countersink;
-    GlobalCountersinkChamfer = CountersinkChamfer;
-    GlobalCountersinkTipDiameter = TipDiameter;
-    GlobalCountersinkToolDepth = CountersinkToolDepth;
-
-    GlobalStatusBarWindow = StatusBarWindow;
-
     for(int Index = 0; Index < ArrayCount(GlobalCenterDrillOptions); ++Index)
     {
         drill_data *Option = GlobalCenterDrillOptions + Index;
@@ -310,9 +302,9 @@ WinMain(HINSTANCE Instance, HINSTANCE PrevInstance, LPSTR CmdLine, int CmdShow)
 
     for(int Index = 0; Index < ArrayCount(GlobalCountersinkOptions); ++Index)
     {
-        ComboBox_AddString(Countersink, GlobalCountersinkOptions[Index].Name);
+        ComboBox_AddString(CountersinkAngle, GlobalCountersinkOptions[Index].Name);
     }
-    SendMessage(Countersink, CB_SETCURSEL, 0, 0);
+    SendMessage(CountersinkAngle, CB_SETCURSEL, 0, 0);
 
     bool32 GetMessageResult = 0;
     MSG Message;
@@ -328,8 +320,29 @@ WinMain(HINSTANCE Instance, HINSTANCE PrevInstance, LPSTR CmdLine, int CmdShow)
             bool32 WasDialogMessage = IsDialogMessage(Window, &Message);
             if(!WasDialogMessage)
             {
-                TranslateMessage(&Message);
-                DispatchMessage(&Message);
+                switch(Message.message)
+                {
+                    case MESSAGE_CENTERDRILL_CHANGE:
+                    {
+                        Win32HandleCenterDrillChange(CenterDrillChamfer,
+                                                     CenterDrillSize,
+                                                     CenterDrillToolDepth,
+                                                     GlobalCenterDrillOptions);
+                    } break;
+                    case MESSAGE_COUNTERSINK_CHANGE:
+                    {
+                        Win32HandleCountersinkChange(CountersinkAngle,
+                                                     CountersinkChamfer,
+                                                     TipDiameter,
+                                                     CountersinkToolDepth,
+                                                     GlobalCountersinkOptions);
+                    } break;
+                    default:
+                    {
+                        TranslateMessage(&Message);
+                        DispatchMessage(&Message);
+                    } break;
+                }
             }
         }
     }
