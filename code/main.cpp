@@ -1,7 +1,3 @@
-/**
- * Drill Calc
- **/
-
 #define WIN32_LEAN_AND_MEAN
 
 #include <windows.h>
@@ -14,7 +10,6 @@
 #include <limits.h>
 #include <assert.h>
 #include <string.h>
-#include <float.h>
 #include <math.h>
 
 #include "drillcalc_platform.h"
@@ -41,11 +36,11 @@ global_variable drill_data GlobalCenterDrillOptions[] =
 
 global_variable drill_angle_data GlobalCountersinkOptions[] =
 {
-    {"60°", 60.0f},
-    {"82°", 82.0f},
-    {"90°", 90.0f},
-    {"100°", 100.0f},
-    {"120°", 120.0f},
+    {"60Â°", 60.0f},
+    {"82Â°", 82.0f},
+    {"90Â°", 90.0f},
+    {"100Â°", 100.0f},
+    {"120Â°", 120.0f},
 };
 
 #define CONTROL_EDIT_DIAMETER		500
@@ -216,7 +211,7 @@ WindowsCallback(HWND Window, UINT Message, WPARAM WParam, LPARAM LParam)
                 }
                 else if(WParamLow == APP_MENU_HELP_ABOUT)
                 {
-                    MessageBox(NULL, "DepthCalc ©2019", "About", MB_OK | MB_ICONINFORMATION);
+                    MessageBox(NULL, "DepthCalc Â©2019", "About", MB_OK | MB_ICONINFORMATION);
                 }
             } break;
         default:
